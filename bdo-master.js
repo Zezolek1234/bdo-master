@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         BDO - Master (v8.11)
+// @name         BDO - Master (v8.12)
 // @namespace    http://tampermonkey.net/
-// @version      8.11
+// @version      8.12
 // @description  Na potrzeby raportowania danych dla paliw alternatywnych, uproszczona wersja TwojeBDO.
 // @author       Michał Tkocz PreZero National Sales PL
 // @match        https://rejestr-bdo.mos.gov.pl/*
@@ -13,7 +13,7 @@
 (function () {
     'use strict';
 
-    console.log("--- BDO KPO Master v8.11: Start ---");
+    console.log("--- BDO KPO Master v8.12: Start ---");
 
     // --- USTAWIENIA (STORAGE) ---
     const SETTINGS_KEY = 'bdo_master_settings';
@@ -62,9 +62,9 @@
         },
         set(url, data) {
             if (data.carrier === "Błąd" || data.info === "Błąd") return;
-            try { 
+            try {
                 data.timestamp = Date.now();
-                sessionStorage.setItem('bdo_kpo_' + btoa(encodeURIComponent(url)), JSON.stringify(data)); 
+                sessionStorage.setItem('bdo_kpo_' + btoa(encodeURIComponent(url)), JSON.stringify(data));
             } catch (e) { }
         },
         clear() {
@@ -225,7 +225,7 @@
 
         const panel = document.createElement('div');
         panel.id = 'bdo-settings-panel';
-        
+
         panel.innerHTML = `
             <h4><i class="fa fa-cogs"></i> Ustawienia BDO Master</h4>
             <label class="bdo-set-row">
@@ -234,7 +234,7 @@
             </label>
             <label class="bdo-set-row" style="${settings.enableTableExtender ? '' : 'opacity: 0.5; pointer-events: none;'}">
                 <input type="checkbox" id="chk-details-btn" ${settings.enableDetailsButton ? 'checked' : ''}>
-                Zamieniaj przycisk "Opcje" na "Szczegóły"
+                Szybkie szczegóły karty
             </label>
             <label class="bdo-set-row">
                 <input type="checkbox" id="chk-float-win" ${settings.enableFloatingWindow ? 'checked' : ''}>
@@ -269,7 +269,7 @@
                     <i class="pe-7s-config" style="color:#6a6c6f;"></i>
                 </a>
             `;
-            
+
             btnLi.querySelector('a').addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -350,7 +350,7 @@
                 chipsWrapper.insertBefore(chip, chipsInput);
             });
         }
-        
+
         if (chipsWrapper) {
             renderChips();
             chipsWrapper.addEventListener('click', (e) => {
@@ -404,7 +404,7 @@
                 if (win) win.remove();
             }
         });
-        
+
         btnClearCache.addEventListener('click', () => {
             SessionCache.clear();
             alert("Pamięć podręczna BDO Master została wyczyszczona. Odśwież stronę, aby pobrać najnowsze dane z BDO.");
@@ -510,8 +510,25 @@
         document.querySelectorAll('tr[data-bdo-processed="true"]').forEach(el => el.removeAttribute('data-bdo-processed'));
     }
 
+    const ALLOWED_TABLE_PATHS = [
+        '/wasteregister/wastetransferforwardedcard',
+        '/wasteregister/wastetransfertransportcard',
+        '/wasteregister/wastetransferacquiredcard',
+        '/wasteregister/municipalwastetransferforwardedreceivecard',
+        '/wasteregister/municipalwastetransferforwardedtransfercard',
+        '/wasteregister/municipalwastetransfertransportreceivecard',
+        '/wasteregister/municipalwastetransfertransporttransfercard',
+        '/wasteregister/municipalwastetransferacquiredreceivecard',
+        '/wasteregister/municipalwastetransferacquiredtransfercard'
+    ];
+
+    function isAllowedPath() {
+        const path = window.location.pathname.toLowerCase();
+        return ALLOWED_TABLE_PATHS.some(p => path.includes(p));
+    }
+
     function processTable() {
-        if (!window.location.pathname.toLowerCase().startsWith('/wasteregister/')) return;
+        if (!isAllowedPath()) return;
         if (!settings.enableTableExtender) return;
 
         const table = document.querySelector('table.table');
@@ -598,7 +615,7 @@
             if (linkToFetch) {
                 fetchCardDetails(linkToFetch).then(details => {
                     if (!details) return;
-                    
+
                     cellCarrier.innerText = details.carrier;
                     cellInfo.innerText = details.info;
 
@@ -706,7 +723,7 @@
         setField('bdo-kpo-box', data.nrKPO);
         setField('bdo-mass-declared-box', data.masa);
         setField('bdo-mass-box', data.masaOdbiorcy);
-        
+
         document.getElementById('bdo-transport-box').textContent = data.transportujacy !== "" ? data.transportujacy : "---";
         document.getElementById('bdo-rej-box').textContent = data.rejestracja !== "" ? data.rejestracja : "---";
         document.getElementById('bdo-info-box').textContent = data.awizacja !== "" ? data.awizacja : "---";
@@ -716,7 +733,7 @@
 
     function createFloatingWindow() {
         if (!settings.enableFloatingWindow) return;
-        
+
         const data = extractData();
         const win = document.getElementById('bdo-float-window');
 
@@ -731,7 +748,7 @@
 
         const windowDiv = document.createElement('div');
         windowDiv.id = 'bdo-float-window';
-        
+
         const savedPosStr = localStorage.getItem(WINDOW_POS_KEY);
         if (savedPosStr) {
             try {
@@ -744,7 +761,7 @@
                 if (l < 0) l = 0;
                 windowDiv.style.top = t + 'px';
                 windowDiv.style.left = l + 'px';
-            } catch(e) {}
+            } catch (e) { }
         } else {
             windowDiv.style.top = '130px';
             windowDiv.style.right = '40px';
@@ -784,11 +801,11 @@
             e.stopPropagation();
             if (contentDiv.classList.contains('bdo-minimized')) {
                 contentDiv.classList.remove('bdo-minimized');
-                minBtn.innerText = '▲'; 
+                minBtn.innerText = '▲';
                 localStorage.setItem(WINDOW_MINIMIZED_KEY, 'false');
             } else {
                 contentDiv.classList.add('bdo-minimized');
-                minBtn.innerText = '▼'; 
+                minBtn.innerText = '▼';
                 localStorage.setItem(WINDOW_MINIMIZED_KEY, 'true');
             }
         };
