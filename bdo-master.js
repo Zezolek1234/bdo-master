@@ -50,13 +50,22 @@
     const SessionCache = {
         get(url) {
             try {
-                const data = sessionStorage.getItem('bdo_kpo_' + btoa(encodeURIComponent(url)));
-                return data ? JSON.parse(data) : null;
+                const dataStr = sessionStorage.getItem('bdo_kpo_' + btoa(encodeURIComponent(url)));
+                if (!dataStr) return null;
+                const data = JSON.parse(dataStr);
+                if (Date.now() - data.timestamp > 14400000) { // 4 godziny TTL
+                    sessionStorage.removeItem('bdo_kpo_' + btoa(encodeURIComponent(url)));
+                    return null;
+                }
+                return data;
             } catch (e) { return null; }
         },
         set(url, data) {
             if (data.carrier === "Błąd" || data.info === "Błąd") return;
-            try { sessionStorage.setItem('bdo_kpo_' + btoa(encodeURIComponent(url)), JSON.stringify(data)); } catch (e) { }
+            try { 
+                data.timestamp = Date.now();
+                sessionStorage.setItem('bdo_kpo_' + btoa(encodeURIComponent(url)), JSON.stringify(data)); 
+            } catch (e) { }
         },
         clear() {
             const keysToRemove = [];
@@ -71,20 +80,35 @@
     };
 
     const cssStyles = `
+        @keyframes bdoFadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         #bdo-settings-panel {
             position: fixed; top: 60px; right: 20px; width: 330px; background: #ffffff;
             border: 1px solid #cbd5e1; border-radius: 4px; padding: 15px; z-index: 2147483647;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: none; color: #333;
         }
+        #bdo-settings-panel.bdo-show-panel { display: block; animation: bdoFadeIn 0.2s ease-out forwards; }
         #bdo-settings-panel h4 { margin: 0 0 15px 0; font-size: 14px; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 8px; }
         .bdo-set-row { margin-bottom: 12px; display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-weight: normal; }
         .bdo-set-row input[type="checkbox"] { cursor: pointer; margin-top: 2px; }
-        #txt-highlight-filters { width: 100%; height: 50px; font-size: 12px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; resize: vertical; }
+        
+        .bdo-chips-container { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; min-height: 40px; background: #fff; cursor: text; }
+        .bdo-chip { background: #e2e8f0; border-radius: 12px; padding: 3px 8px; font-size: 11px; display: flex; align-items: center; gap: 4px; color: #334155; }
+        .bdo-chip-remove { cursor: pointer; font-weight: bold; color: #94a3b8; transition: color 0.2s; }
+        .bdo-chip-remove:hover { color: #ef4444; }
+        .bdo-chips-input { border: none; outline: none; flex: 1; min-width: 60px; font-size: 12px; background: transparent; }
+
+        #bdo-settings-btn-fallback {
+            position: fixed; bottom: 20px; left: 20px; width: 45px; height: 45px; background: #0f4c75; color: white; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2147483647; opacity: 0.8;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.3s; font-size: 20px;
+        }
+        #bdo-settings-btn-fallback:hover { opacity: 1; transform: scale(1.1); background: #002642; }
 
         #bdo-float-window {
             position: fixed; width: 420px; background: #ffffff; border: 2px solid #cbd5e1;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3); z-index: 2147483646; border-radius: 8px;
             display: flex; flex-direction: column; overflow: hidden; opacity: 1 !important;
+            transition: opacity 0.2s;
         }
         #bdo-float-header {
             background: linear-gradient(135deg, #0f4c75 0%, #002642 100%); color: white; padding: 12px 16px;
@@ -99,7 +123,8 @@
         }
         .bdo-ctrl-btn:hover { background: rgba(255,255,255,0.3); }
 
-        #bdo-float-content { padding: 16px; background: #f8fafc; max-height: 80vh; overflow-y: auto; border-top: 1px solid #e2e8f0; }
+        #bdo-float-content { padding: 16px; background: #f8fafc; max-height: 80vh; overflow-y: auto; border-top: 1px solid #e2e8f0; transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s; opacity: 1; }
+        #bdo-float-content.bdo-minimized { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; overflow: hidden; border-top: none; }
         .bdo-row { margin-bottom: 12px; }
         .bdo-row:last-child { margin-bottom: 0; }
         .bdo-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; margin-bottom: 4px; font-weight: bold; }
@@ -223,8 +248,10 @@
                 Wyróżnianie wierszy tabeli (Odbierający)
             </label>
             <div id="div-highlight-filters" style="margin-left: 24px; margin-bottom: 12px; display: ${settings.enableRowHighlight ? 'block' : 'none'};">
-                <div style="font-size: 11px; color: #64748b; margin-bottom: 4px;">Wpisz nazwy podmiotów (oddziel przecinkiem):</div>
-                <textarea id="txt-highlight-filters" placeholder="np. EKO-MAR, Recykling Sp. z o.o."></textarea>
+                <div style="font-size: 11px; color: #64748b; margin-bottom: 4px;">Wpisz nazwy podmiotów (potwierdź Enterem):</div>
+                <div id="bdo-chips-wrapper" class="bdo-chips-container">
+                    <input type="text" id="bdo-chips-input" class="bdo-chips-input" placeholder="np. EKO-MAR...">
+                </div>
             </div>
             
             <hr style="margin: 15px 0 10px 0; border-color: #eee;">
@@ -233,8 +260,6 @@
             </button>
         `;
         document.body.appendChild(panel);
-        
-        document.getElementById('txt-highlight-filters').value = settings.highlightFilters;
 
         if (loggedUserLi) {
             const btnLi = document.createElement('li');
@@ -248,21 +273,32 @@
             btnLi.querySelector('a').addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+                if (panel.classList.contains('bdo-show-panel')) {
+                    panel.classList.remove('bdo-show-panel');
+                    setTimeout(() => panel.style.display = 'none', 300);
+                } else {
+                    panel.style.display = 'block';
+                    panel.classList.add('bdo-show-panel');
+                }
             });
 
             loggedUserLi.parentNode.insertBefore(btnLi, loggedUserLi);
         } else {
             const fallbackBtn = document.createElement('div');
-            fallbackBtn.id = 'bdo-settings-btn';
+            fallbackBtn.id = 'bdo-settings-btn-fallback';
             fallbackBtn.innerHTML = '<i class="fa fa-cog"></i>';
-            fallbackBtn.style.cssText = 'position:fixed; bottom:20px; left:20px; width:40px; height:40px; background:#0f4c75; color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:2147483647; opacity: 0.8;';
             fallbackBtn.title = 'Ustawienia BDO Master';
             document.body.appendChild(fallbackBtn);
 
             fallbackBtn.onclick = (e) => {
                 e.stopPropagation();
-                panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+                if (panel.classList.contains('bdo-show-panel')) {
+                    panel.classList.remove('bdo-show-panel');
+                    setTimeout(() => panel.style.display = 'none', 300);
+                } else {
+                    panel.style.display = 'block';
+                    panel.classList.add('bdo-show-panel');
+                }
             };
         }
 
@@ -272,7 +308,8 @@
         const chkDetailsBtn = document.getElementById('chk-details-btn');
         const chkRowHighlight = document.getElementById('chk-row-highlight');
         const chkFloatWin = document.getElementById('chk-float-win');
-        const txtHighlightFilters = document.getElementById('txt-highlight-filters');
+        const chipsWrapper = document.getElementById('bdo-chips-wrapper');
+        const chipsInput = document.getElementById('bdo-chips-input');
         const divHighlightFilters = document.getElementById('div-highlight-filters');
         const btnClearCache = document.getElementById('btn-clear-cache');
 
@@ -303,16 +340,61 @@
             }
         });
 
-        let filterTimeout;
-        txtHighlightFilters.addEventListener('input', (e) => {
-            clearTimeout(filterTimeout);
-            filterTimeout = setTimeout(() => {
-                settings.highlightFilters = e.target.value;
-                updateParsedFilters();
-                saveSettingsOnly();
-                applyRowHighlights();
-            }, 300);
-        });
+        function renderChips() {
+            if (!chipsWrapper) return;
+            chipsWrapper.querySelectorAll('.bdo-chip').forEach(el => el.remove());
+            parsedFilters.forEach(filter => {
+                const chip = document.createElement('div');
+                chip.className = 'bdo-chip';
+                chip.innerHTML = `<span>${filter}</span><span class="bdo-chip-remove" data-filter="${filter}">×</span>`;
+                chipsWrapper.insertBefore(chip, chipsInput);
+            });
+        }
+        
+        if (chipsWrapper) {
+            renderChips();
+            chipsWrapper.addEventListener('click', (e) => {
+                if (e.target.classList.contains('bdo-chip-remove')) {
+                    const toRemove = e.target.getAttribute('data-filter');
+                    settings.highlightFilters = parsedFilters.filter(f => f !== toRemove).join(',');
+                    updateParsedFilters();
+                    saveSettingsOnly();
+                    renderChips();
+                    applyRowHighlights();
+                } else {
+                    chipsInput.focus();
+                }
+            });
+
+            chipsInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    const val = chipsInput.value.trim().replace(/,/g, '');
+                    if (val && !parsedFilters.includes(val.toLowerCase())) {
+                        const current = settings.highlightFilters ? settings.highlightFilters.split(',').filter(f => f.trim().length > 0) : [];
+                        current.push(val);
+                        settings.highlightFilters = current.join(',');
+                        updateParsedFilters();
+                        saveSettingsOnly();
+                        chipsInput.value = '';
+                        renderChips();
+                        applyRowHighlights();
+                    } else if (val) {
+                        chipsInput.value = '';
+                    }
+                } else if (e.key === 'Backspace' && chipsInput.value === '') {
+                    if (parsedFilters.length > 0) {
+                        const current = settings.highlightFilters.split(',').filter(f => f.trim().length > 0);
+                        current.pop();
+                        settings.highlightFilters = current.join(',');
+                        updateParsedFilters();
+                        saveSettingsOnly();
+                        renderChips();
+                        applyRowHighlights();
+                    }
+                }
+            });
+        }
 
         chkFloatWin.addEventListener('change', (e) => {
             settings.enableFloatingWindow = e.target.checked;
@@ -331,8 +413,9 @@
 
     document.addEventListener('click', (e) => {
         const panel = document.getElementById('bdo-settings-panel');
-        if (panel && panel.style.display === 'block' && !panel.contains(e.target) && !e.target.closest('#bdo-settings-btn')) {
-            panel.style.display = 'none';
+        if (panel && panel.classList.contains('bdo-show-panel') && !panel.contains(e.target) && !e.target.closest('#bdo-settings-btn') && !e.target.closest('#bdo-settings-btn-fallback')) {
+            panel.classList.remove('bdo-show-panel');
+            setTimeout(() => panel.style.display = 'none', 300);
         }
     });
 
@@ -404,9 +487,9 @@
             row.classList.remove('bdo-highlighted-row');
 
             if (parsedFilters.length > 0) {
-                const rowText = row.textContent.toLowerCase();
+                const cellsText = Array.from(row.cells).filter(c => !c.querySelector('.btn-group')).map(c => c.innerText).join(' ').toLowerCase();
                 for (let filter of parsedFilters) {
-                    if (rowText.includes(filter)) {
+                    if (cellsText.includes(filter)) {
                         row.classList.add('bdo-highlighted-row');
                         break;
                     }
@@ -534,7 +617,7 @@
 
     function extractData() {
         const getVal = (id) => {
-            const el = document.getElementById(id);
+            const el = document.getElementById(id) || document.querySelector(`[name="${id}"]`);
             if (!el) return "";
             const val = el.value || el.innerText || "";
             return val.trim() !== "" ? val.trim() : "";
@@ -653,8 +736,14 @@
         if (savedPosStr) {
             try {
                 const savedPos = JSON.parse(savedPosStr);
-                windowDiv.style.top = savedPos.top;
-                windowDiv.style.left = savedPos.left;
+                let t = parseInt(savedPos.top);
+                let l = parseInt(savedPos.left);
+                if (t > window.innerHeight - 50) t = window.innerHeight - 100;
+                if (l > window.innerWidth - 50) l = window.innerWidth - 100;
+                if (t < 0) t = 0;
+                if (l < 0) l = 0;
+                windowDiv.style.top = t + 'px';
+                windowDiv.style.left = l + 'px';
             } catch(e) {}
         } else {
             windowDiv.style.top = '130px';
@@ -687,14 +776,18 @@
         const minBtn = document.getElementById('bdo-minimize');
         const contentDiv = document.getElementById('bdo-float-content');
 
+        if (isMinimized) {
+            contentDiv.classList.add('bdo-minimized');
+        }
+
         minBtn.onclick = (e) => {
             e.stopPropagation();
-            if (contentDiv.style.display === 'none') {
-                contentDiv.style.display = 'block'; 
+            if (contentDiv.classList.contains('bdo-minimized')) {
+                contentDiv.classList.remove('bdo-minimized');
                 minBtn.innerText = '▲'; 
                 localStorage.setItem(WINDOW_MINIMIZED_KEY, 'false');
             } else {
-                contentDiv.style.display = 'none'; 
+                contentDiv.classList.add('bdo-minimized');
                 minBtn.innerText = '▼'; 
                 localStorage.setItem(WINDOW_MINIMIZED_KEY, 'true');
             }
@@ -737,14 +830,16 @@
 
     const observer = new MutationObserver(debouncedObserverCallback);
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            observer.observe(document.body, { childList: true, subtree: true });
-            mainObserverCallback();
-        });
-    } else {
-        observer.observe(document.body, { childList: true, subtree: true });
+    function startObserver() {
+        const targetNode = document.querySelector('.main-content') || document.querySelector('#page-wrapper') || document.body;
+        observer.observe(targetNode, { childList: true, subtree: true });
         mainObserverCallback();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startObserver);
+    } else {
+        startObserver();
     }
 
 })();
