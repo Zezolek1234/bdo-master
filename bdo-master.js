@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         BDO - Master (v8.12)
+// @name         BDO - Master (v8.13)
 // @namespace    http://tampermonkey.net/
-// @version      8.12
+// @version      8.13
 // @description  Na potrzeby raportowania danych dla paliw alternatywnych, uproszczona wersja TwojeBDO.
 // @author       Michał Tkocz PreZero National Sales PL
 // @match        https://rejestr-bdo.mos.gov.pl/*
@@ -13,7 +13,7 @@
 (function () {
     'use strict';
 
-    console.log("--- BDO KPO Master v8.12: Start ---");
+    console.log("--- BDO KPO Master v8.13: Start ---");
 
     // --- USTAWIENIA (STORAGE) ---
     const SETTINGS_KEY = 'bdo_master_settings';
@@ -25,6 +25,7 @@
         enableFloatingWindow: true,
         enableDetailsButton: true,
         enableRowHighlight: false,
+        enableQuickSwitch: true,
         highlightFilters: ""
     };
 
@@ -240,6 +241,10 @@
                 <input type="checkbox" id="chk-float-win" ${settings.enableFloatingWindow ? 'checked' : ''}>
                 Pływające okno danych w karcie KPO
             </label>
+            <label class="bdo-set-row">
+                <input type="checkbox" id="chk-quick-switch" ${settings.enableQuickSwitch ? 'checked' : ''}>
+                Szybkie przełączanie Podmiotów / MPD
+            </label>
 
             <hr style="margin: 15px 0 10px 0; border-color: #eee;">
 
@@ -308,6 +313,7 @@
         const chkDetailsBtn = document.getElementById('chk-details-btn');
         const chkRowHighlight = document.getElementById('chk-row-highlight');
         const chkFloatWin = document.getElementById('chk-float-win');
+        const chkQuickSwitch = document.getElementById('chk-quick-switch');
         const chipsWrapper = document.getElementById('bdo-chips-wrapper');
         const chipsInput = document.getElementById('bdo-chips-input');
         const divHighlightFilters = document.getElementById('div-highlight-filters');
@@ -338,6 +344,11 @@
             } else {
                 applyRowHighlights();
             }
+        });
+
+        chkQuickSwitch.addEventListener('change', (e) => {
+            settings.enableQuickSwitch = e.target.checked;
+            saveSettingsOnly();
         });
 
         function renderChips() {
@@ -813,10 +824,207 @@
         makeDraggable(windowDiv);
     }
 
+    function fetchAndBuildDropdown(url, dropdown, nameCellIndex) {
+        if (dropdown.bdoIframe) {
+            dropdown.bdoIframe.remove();
+        }
+
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = url;
+        dropdown.bdoIframe = iframe;
+        document.body.appendChild(iframe);
+
+        let iframeReady = false;
+
+        const checkInterval = setInterval(() => {
+            try {
+                if (!iframe.contentDocument) return;
+                const doc = iframe.contentDocument;
+                
+                const table = doc.querySelector('table');
+                if (!table) return;
+
+                const rows = doc.querySelectorAll('table tbody tr');
+                const isEmptyTable = doc.querySelector('.dataTables_empty') !== null;
+                const processingEl = doc.querySelector('.dataTables_processing');
+                const isProcessing = processingEl && processingEl.style.display !== 'none';
+                
+                if (rows.length > 0 && !isProcessing && (!isEmptyTable || rows.length > 1)) {
+                    clearInterval(checkInterval);
+                    iframeReady = true;
+                    
+                    const validRows = Array.from(rows).filter(r => !r.querySelector('.dataTables_empty'));
+                    dropdown.querySelectorAll('.bdo-loading-switch').forEach(el => el.remove());
+                    
+                    if (validRows.length === 0) {
+                        const li = document.createElement('li');
+                        li.className = 'bdo-injected-item';
+                        li.innerHTML = '<a href="#">Brak elementów</a>';
+                        dropdown.appendChild(li);
+                        return;
+                    }
+
+                    const divider = document.createElement('li');
+                    divider.className = 'divider bdo-injected-item';
+                    dropdown.appendChild(divider);
+
+                    const header = document.createElement('li');
+                    header.className = 'dropdown-header bdo-injected-item';
+                    header.innerText = 'Szybkie przełączanie:';
+                    header.style.color = '#0f4c75';
+                    header.style.fontWeight = 'bold';
+                    header.style.textTransform = 'uppercase';
+                    dropdown.appendChild(header);
+
+                    validRows.forEach(row => {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length <= nameCellIndex) return;
+                        const name = cells[nameCellIndex].innerText.trim();
+                        const code = cells[nameCellIndex - 1] ? cells[nameCellIndex - 1].innerText.trim() : '';
+                        
+                        const btn = row.querySelector('button.btn-primary, a.btn-primary');
+                        if (!btn) return;
+                        
+                        const li = document.createElement('li');
+                        li.className = 'bdo-injected-item';
+                        const a = document.createElement('a');
+                        a.href = '#';
+                        a.innerHTML = `<span style="font-weight: bold; white-space: normal; display: block; line-height: 1.2; color: #333;">${name}</span>`;
+                        a.style.padding = '8px 20px';
+                        a.style.borderBottom = '1px solid #f5f5f5';
+                        a.style.maxWidth = '400px';
+                        
+                        a.onclick = (e) => {
+                            e.preventDefault();
+                            a.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Przełączanie...';
+                            
+                            try {
+                                iframe.contentWindow.addEventListener('unload', () => {
+                                    setTimeout(() => window.location.reload(), 800);
+                                });
+                            } catch(err) {}
+
+                            btn.click();
+                            
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 3000);
+                        };
+                        
+                        li.appendChild(a);
+                        dropdown.appendChild(li);
+                    });
+                }
+            } catch(e) {}
+        }, 300);
+
+        setTimeout(() => {
+            clearInterval(checkInterval);
+            if (!iframeReady && document.body.contains(iframe)) {
+                if (dropdown.querySelector('.bdo-loading-switch')) {
+                    dropdown.querySelectorAll('.bdo-loading-switch').forEach(el => el.remove());
+                    const li = document.createElement('li');
+                    li.className = 'bdo-injected-item text-danger';
+                    li.innerHTML = '<a href="#">Błąd pobierania (Timeout)</a>';
+                    dropdown.appendChild(li);
+                }
+            }
+        }, 15000);
+    }
+
+    function setupQuickSwitch() {
+        const companySection = document.querySelector('.nav-mid-section-company');
+        const eupSection = document.querySelector('.nav-mid-section-eup');
+
+        if (companySection && !companySection.dataset.bdoBound) {
+            companySection.dataset.bdoBound = "true";
+            const btnGroup = companySection.querySelector('.btn-group');
+            
+            if (btnGroup) {
+                companySection.addEventListener('mouseenter', () => {
+                    if (!settings.enableQuickSwitch) return;
+                    btnGroup.classList.add('open');
+                    const dropdown = companySection.querySelector('#company-info');
+                    if (dropdown && !dropdown.dataset.bdoLoaded) {
+                        dropdown.dataset.bdoLoaded = "true";
+                        const li = document.createElement('li');
+                        li.className = 'bdo-loading-switch bdo-injected-item';
+                        li.innerHTML = '<a href="#"><i class="fa fa-spinner fa-spin"></i> Ładowanie podmiotów...</a>';
+                        dropdown.appendChild(li);
+                        
+                        fetchAndBuildDropdown('/User/ChooseCompany', dropdown, 2);
+                    }
+                });
+                companySection.addEventListener('mouseleave', () => {
+                    btnGroup.classList.remove('open');
+                });
+            }
+        }
+
+        if (eupSection && !eupSection.dataset.bdoBound) {
+            eupSection.dataset.bdoBound = "true";
+            const btnGroup = eupSection.querySelector('.btn-group');
+            
+            if (btnGroup) {
+                eupSection.addEventListener('mouseenter', () => {
+                    if (!settings.enableQuickSwitch) return;
+                    btnGroup.classList.add('open');
+                    const dropdown = eupSection.querySelector('#eup-info');
+                    if (dropdown && !dropdown.dataset.bdoLoaded) {
+                        dropdown.dataset.bdoLoaded = "true";
+                        const li = document.createElement('li');
+                        li.className = 'bdo-loading-switch bdo-injected-item';
+                        li.innerHTML = '<a href="#"><i class="fa fa-spinner fa-spin"></i> Ładowanie MPD...</a>';
+                        dropdown.appendChild(li);
+                        
+                        fetchAndBuildDropdown('/User/ChooseEup/Active', dropdown, 2);
+                    }
+                });
+                eupSection.addEventListener('mouseleave', () => {
+                    btnGroup.classList.remove('open');
+                });
+            }
+        }
+    }
+
+    function initMenuState() {
+        const MENU_STATE_KEY = 'bdo_menu_hidden';
+        
+        const initInterval = setInterval(() => {
+            const menuBtn = document.querySelector('.hide-menu');
+            if (menuBtn) {
+                clearInterval(initInterval);
+                if (menuBtn.dataset.bdoMenuBound) return;
+                menuBtn.dataset.bdoMenuBound = "true";
+
+                const isHidden = localStorage.getItem(MENU_STATE_KEY) === 'true';
+                
+                setTimeout(() => {
+                    const isCurrentlyHidden = document.body.classList.contains('hide-sidebar');
+                    
+                    if (isHidden && !isCurrentlyHidden) {
+                        menuBtn.click();
+                    }
+                    
+                    menuBtn.addEventListener('click', () => {
+                        setTimeout(() => {
+                            localStorage.setItem(MENU_STATE_KEY, document.body.classList.contains('hide-sidebar'));
+                        }, 50);
+                    });
+                }, 300);
+            }
+        }, 200);
+        
+        // Safety timeout
+        setTimeout(() => clearInterval(initInterval), 10000);
+    }
+
     let bdoTableTimeout;
 
     function mainObserverCallback() {
         createSettingsUI();
+        setupQuickSwitch();
 
         if (window.location.pathname.toLowerCase().startsWith('/wasteregister/')) {
             clearTimeout(bdoTableTimeout);
@@ -846,6 +1054,9 @@
     };
 
     const observer = new MutationObserver(debouncedObserverCallback);
+
+    // Uruchomienie nasłuchiwaczy dla statycznych elementów np. Menu
+    initMenuState();
 
     function startObserver() {
         const targetNode = document.querySelector('.main-content') || document.querySelector('#page-wrapper') || document.body;
