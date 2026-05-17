@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         BDO - Master (v8.14)
+// @name         BDO - Master (v8.15)
 // @namespace    http://tampermonkey.net/
-// @version      8.14
+// @version      8.15
 // @description  Na potrzeby raportowania danych dla paliw alternatywnych, uproszczona wersja TwojeBDO.
 // @author       Michał Tkocz PreZero National Sales PL
 // @match        https://rejestr-bdo.mos.gov.pl/*
@@ -13,7 +13,7 @@
 (function () {
     'use strict';
 
-    console.log("--- BDO KPO Master v8.14: Start ---");
+    console.log("--- BDO KPO Master v8.15: Start ---");
 
     // --- USTAWIENIA (STORAGE) ---
     const SETTINGS_KEY = 'bdo_master_settings';
