@@ -1,0 +1,10 @@
+# Systemowe pliki macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Systemowe pliki Windows
+Thumbs.db
+ehthumbs.db
