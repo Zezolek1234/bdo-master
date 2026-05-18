@@ -671,18 +671,15 @@
             const btnGroup = row.querySelector('.btn-group');
 
             if (btnGroup) {
-                const dropdownLink = btnGroup.querySelector('ul.dropdown-menu a');
+                const dropdownLink = btnGroup.querySelector('.dropdown-menu a');
                 if (dropdownLink && dropdownLink.href) {
                     linkToFetch = dropdownLink.href;
 
                     const directBtn = document.createElement('a');
                     directBtn.href = linkToFetch;
+                    directBtn.target = '_blank';
                     directBtn.className = 'btn btn-default btn-sm bdo-direct-btn';
                     directBtn.innerHTML = '<i class="fa fa-search text-info"></i> Szczegóły';
-                    directBtn.onclick = function (e) {
-                        e.preventDefault();
-                        GM_openInTab(linkToFetch, { active: false, insert: true });
-                    };
 
                     btnGroup.parentNode.insertBefore(directBtn, btnGroup.nextSibling);
 
@@ -927,8 +924,7 @@
                     const doc = iframe.contentDocument;
                     if (!doc || !doc.body) return;
 
-                    const table = doc.querySelector('table');
-                    if (!table) return;
+                    let table = doc.querySelector('table');
 
                     const processingEl = doc.querySelector('.dataTables_processing');
                     const iframeWin = iframe.contentWindow;
@@ -940,17 +936,26 @@
                     if (isProcessing) return;
 
                     const emptyEl = doc.querySelector('.dataTables_empty');
-                    const rows = doc.querySelectorAll('table tbody tr');
+                    let rows = doc.querySelectorAll('table tbody tr');
 
-                    if (rows.length === 0) return;
-                    if (rows.length === 1 && emptyEl) return;
+                    if (rows.length === 0) {
+                        // Jeśli zmienili widok na listy
+                        rows = doc.querySelectorAll('.list-group-item, .card');
+                    }
+
+                    if (rows.length === 0 && !emptyEl) return; // Jeśli nie ma wierszy i nie ma komunikatu o braku, czekaj dalej
 
                     clearInterval(checkInterval);
                     iframeReady = true;
 
-                    const validRows = Array.from(rows).filter(r =>
-                        !r.querySelector('.dataTables_empty') && r.cells.length > 0
-                    );
+                    let validRows = [];
+                    if (rows.length === 1 && emptyEl) {
+                        validRows = [];
+                    } else {
+                        validRows = Array.from(rows).filter(r =>
+                            !r.querySelector('.dataTables_empty') && (r.cells ? r.cells.length > 0 : true)
+                        );
+                    }
                     dropdown.querySelectorAll('.bdo-loading-switch').forEach(el => el.remove());
 
                     if (validRows.length === 0) {
@@ -982,11 +987,16 @@
                         ?.querySelector('.nav-mid-name')?.textContent?.trim() || '';
 
                     validRows.forEach(row => {
-                        const cells = row.querySelectorAll('td');
-                        if (cells.length <= nameCellIndex) return;
-                        const name = cells[nameCellIndex].innerText.trim();
+                        let name = "";
+                        if (row.cells && row.cells.length > nameCellIndex) {
+                            name = row.cells[nameCellIndex].innerText.trim();
+                        } else {
+                            // Jeśli nie jest to tabela, próbujemy wyciągnąć mocny tekst
+                            const strongEl = row.querySelector('strong, h4, .text-bold');
+                            name = strongEl ? strongEl.innerText.trim() : row.innerText.trim();
+                        }
 
-                        const btn = row.querySelector('button.btn-primary, a.btn-primary');
+                        const btn = row.querySelector('button.btn-primary, a.btn-primary, button[type="submit"], a.btn, .btn-info, .btn-success, input[type="submit"]');
                         if (!btn) return;
 
                         const isActive = currentName && (
