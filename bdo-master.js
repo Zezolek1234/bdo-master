@@ -677,9 +677,12 @@
 
                     const directBtn = document.createElement('a');
                     directBtn.href = linkToFetch;
-                    directBtn.target = '_blank';
                     directBtn.className = 'btn btn-default btn-sm bdo-direct-btn';
                     directBtn.innerHTML = '<i class="fa fa-search text-info"></i> Szczegóły';
+                    directBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        GM_openInTab(linkToFetch, { active: false, insert: true });
+                    });
 
                     btnGroup.parentNode.insertBefore(directBtn, btnGroup.nextSibling);
 
