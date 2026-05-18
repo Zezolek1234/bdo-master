@@ -869,9 +869,9 @@
             </div>
             <div id="bdo-float-content" style="display: ${contentDisplay};">
                 <div class="bdo-row"><span class="bdo-label">Numer KPO (kliknij)</span><div id="bdo-kpo-box" class="bdo-val-box bdo-interactive" title="Skopiuj numer KPO"></div></div>
-                <div class="bdo-row"><span class="bdo-label">Masa Odbiorcy (kliknij)</span><div id="bdo-mass-box" class="bdo-val-box bdo-interactive bdo-highlight-blue" title="Skopiuj masę odbiorcy"></div></div>
-                <div class="bdo-row"><span class="bdo-label">Masa deklarowana (kliknij)</span><div id="bdo-mass-declared-box" class="bdo-val-box bdo-interactive" title="Skopiuj masę deklarowaną"></div></div>
                 <div class="bdo-row"><span class="bdo-label">Transportujący</span><div id="bdo-transport-box" class="bdo-val-box"></div></div>
+                <div class="bdo-row"><span class="bdo-label">Masa deklarowana (kliknij)</span><div id="bdo-mass-declared-box" class="bdo-val-box bdo-interactive" title="Skopiuj masę deklarowaną"></div></div>
+                <div class="bdo-row"><span class="bdo-label">Masa Odbiorcy (kliknij)</span><div id="bdo-mass-box" class="bdo-val-box bdo-interactive bdo-highlight-blue" title="Skopiuj masę odbiorcy"></div></div>
                 <div class="bdo-row"><span class="bdo-label">Rejestracja</span><div id="bdo-rej-box" class="bdo-val-box"></div></div>
                 <div class="bdo-row"><span class="bdo-label">Kod Odpadu</span><div id="bdo-kod-box" class="bdo-val-box"></div></div>
                 <div class="bdo-row"><span class="bdo-label">Info / Awizacja</span><div id="bdo-info-box" class="bdo-val-box" style="white-space: pre-wrap;"></div></div>

@@ -45,7 +45,7 @@ graph TD
 * Prezentuje w jednym miejscu najpotrzebniejsze parametry karty (np. Numer KPO, Masa Odbiorcy, Masa Deklarowana, Rejestracja Pojazdu, Awizacja itp.).
 * **Kopiowanie jednym kliknięciem:** Kliknięcie na numer KPO lub masy automatycznie kopiuje je do schowka, co sygnalizowane jest zielonym błyskiem sukcesu.
 
-### 🎨 5. Inteligentne wyróżnianie wierszy (Row Highlight)
+### 5. 🎨 Inteligentne wyróżnianie wierszy (Row Highlight)
 * Umożliwia automatyczne podświetlanie (na żółto) wierszy zawierających określone słowa kluczowe (np. nazwy konkretnych podmiotów lub odbiorców).
 * Filtry konfiguruje się wygodnie w formie interaktywnych "tagów" (chips) bezpośrednio w panelu ustawień.
 
